@@ -1,49 +1,50 @@
-name: API CD - GitOps Deployment
+name: API CD - Script-Triggered GitOps Deployment
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apis/**'
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to deploy (or all)'
-        required: false
-        default: 'all'
+        description: 'API Service to deploy'
+        required: true
+        type: choice
+        options:
+          - order-service
+          - user-service
+          - all
+        default: 'order-service'
+      environment:
+        description: 'Target Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: 'dev'
 
 jobs:
   detect-services:
-    name: Detect Services to Deploy
+    name: Determine Target Service
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Determine Target Services
+      - name: Parse Service Input
         id: set-matrix
         run: |
-          if [ "${{ github.event.inputs.service }}" != "" ] && [ "${{ github.event.inputs.service }}" != "all" ]; then
-            SERVICES=$(jq -n -c --arg s "${{ github.event.inputs.service }}" '[$s]')
+          INPUT_SERVICE="${{ github.event.inputs.service }}"
+          if [ "$INPUT_SERVICE" == "all" ]; then
+            SERVICES='["order-service", "user-service"]'
           else
-            # Find modified directories under apis/
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "apis/order-service/openapi.yaml apis/user-service/openapi.yaml")
-            SERVICES=$(echo "$CHANGED" | grep '^apis/' | cut -d'/' -f2 | sort -u | jq -R . | jq -s -c .)
-            if [ "$SERVICES" == "[]" ] || [ "$SERVICES" == "" ]; then
-              SERVICES='["order-service", "user-service"]'
-            fi
+            SERVICES=$(jq -n -c --arg s "$INPUT_SERVICE" '[$s]')
           fi
-          echo "Services to deploy: $SERVICES"
+          echo "Target services: $SERVICES"
           echo "matrix=$SERVICES" >> $GITHUB_OUTPUT
 
   deploy-dev:
     name: Deploy to Dev
     needs: detect-services
+    if: github.event.inputs.environment == 'dev'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,7 +69,8 @@ jobs:
 
   deploy-staging:
     name: Deploy to Staging
-    needs: [detect-services, deploy-dev]
+    needs: detect-services
+    if: github.event.inputs.environment == 'staging'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -93,7 +95,8 @@ jobs:
 
   deploy-prod:
     name: Deploy to Production
-    needs: [detect-services, deploy-staging]
+    needs: detect-services
+    if: github.event.inputs.environment == 'prod'
     runs-on: ubuntu-latest
     environment: production
     strategy:
