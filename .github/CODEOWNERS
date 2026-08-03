@@ -1,0 +1,6 @@
+# Global default code owners
+*                       @apim-core-team
+
+# Service-specific ownership rules
+/apis/order-service/    @orders-team @apim-core-team
+/apis/user-service/     @users-team @apim-core-team

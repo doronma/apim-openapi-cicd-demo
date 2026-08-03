@@ -1,0 +1,12 @@
+{
+  "serviceName": "user-service",
+  "environment": "dev",
+  "backendUrl": "https://dev-users-backend.internal.company.com/api/v1",
+  "rateLimitCallsPerMinute": 2000,
+  "enableLogging": true,
+  "corsAllowedOrigins": ["*"],
+  "apimPolicies": {
+    "validateJwt": false,
+    "mockResponse": false
+  }
+}

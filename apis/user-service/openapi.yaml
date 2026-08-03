@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info:
+  title: User Service API
+  description: API for managing user profiles, authentication metadata, and user preferences
+  version: 1.0.0
+paths:
+  /users:
+    get:
+      summary: List all users
+      operationId: listUsers
+      tags:
+        - Users
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of user profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserProfile'
+  /users/{userId}:
+    get:
+      summary: Get user profile by ID
+      operationId: getUserById
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: User profile not found
+components:
+  schemas:
+    UserProfile:
+      type: object
+      required:
+        - id
+        - email
+        - name
+      properties:
+        id:
+          type: string
+          example: usr_998877
+        email:
+          type: string
+          format: email
+          example: jane.doe@example.com
+        name:
+          type: string
+          example: Jane Doe

@@ -1,0 +1,12 @@
+{
+  "serviceName": "user-service",
+  "environment": "staging",
+  "backendUrl": "https://staging-users-backend.internal.company.com/api/v1",
+  "rateLimitCallsPerMinute": 1000,
+  "enableLogging": true,
+  "corsAllowedOrigins": ["https://staging.company.com"],
+  "apimPolicies": {
+    "validateJwt": true,
+    "mockResponse": false
+  }
+}

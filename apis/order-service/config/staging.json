@@ -1,0 +1,12 @@
+{
+  "serviceName": "order-service",
+  "environment": "staging",
+  "backendUrl": "https://staging-orders-backend.internal.company.com/api/v1",
+  "rateLimitCallsPerMinute": 500,
+  "enableLogging": true,
+  "corsAllowedOrigins": ["https://staging.company.com"],
+  "apimPolicies": {
+    "validateJwt": true,
+    "mockResponse": false
+  }
+}
