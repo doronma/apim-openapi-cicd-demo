@@ -70,6 +70,7 @@ paths:
   /orders/{orderId}/cancel:
     post:
       summary: Cancel an order by ID
+      operationId: cancelOrder
       tags:
         - Orders
       parameters:
