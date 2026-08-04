@@ -46,6 +46,7 @@ jobs:
     needs: detect-services
     if: github.event.inputs.environment == 'dev'
     runs-on: ubuntu-latest
+    environment: dev
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-services.outputs.matrix) }}
@@ -72,6 +73,7 @@ jobs:
     needs: detect-services
     if: github.event.inputs.environment == 'staging'
     runs-on: ubuntu-latest
+    environment: staging
     strategy:
       matrix:
         service: ${{ fromJson(needs.detect-services.outputs.matrix) }}
