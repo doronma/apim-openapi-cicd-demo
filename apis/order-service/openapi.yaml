@@ -19,14 +19,14 @@ paths:
             type: integer
             default: 10
       responses:
-        '200':
-          description: A list of orders
+        "200":
+          description: A list of orders to have
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Order'
+                  $ref: "#/components/schemas/Order"
     post:
       summary: Create a new order
       operationId: createOrder
@@ -37,14 +37,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewOrder'
+              $ref: "#/components/schemas/NewOrder"
       responses:
-        '201':
+        "201":
           description: Order created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'
+                $ref: "#/components/schemas/Order"
   /orders/{orderId}:
     get:
       summary: Get order details by ID
@@ -59,13 +59,13 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Order details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'
-        '404':
+                $ref: "#/components/schemas/Order"
+        "404":
           description: Order not found
   /orders/{orderId}/cancel:
     post:
@@ -81,12 +81,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Order cancelled successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'
+                $ref: "#/components/schemas/Order"
 components:
   schemas:
     Order:
