@@ -54,6 +54,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Verify CI Status Gate
+        run: |
+          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+
+          CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("API CI")) | .conclusion' | sort -u | head -n 1)
+          echo "CI Check Result: '$CI_CONCLUSION'"
+          if [ "$CI_CONCLUSION" == "failure" ] || [ "$CI_CONCLUSION" == "cancelled" ]; then
+            echo "❌ ABORT DEPLOYMENT: CI check failed for this spec on commit ${{ github.sha }}!"
+            exit 1
+          fi
+          echo "✅ CI Status Gate Passed. Proceeding to APIM Dev deployment..."
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -81,6 +96,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Verify CI Status Gate
+        run: |
+          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+
+          CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("API CI")) | .conclusion' | sort -u | head -n 1)
+          echo "CI Check Result: '$CI_CONCLUSION'"
+          if [ "$CI_CONCLUSION" == "failure" ] || [ "$CI_CONCLUSION" == "cancelled" ]; then
+            echo "❌ ABORT DEPLOYMENT: CI check failed for this spec on commit ${{ github.sha }}!"
+            exit 1
+          fi
+          echo "✅ CI Status Gate Passed. Proceeding to APIM Staging deployment..."
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -107,6 +137,21 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Verify CI Status Gate
+        run: |
+          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+
+          CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("API CI")) | .conclusion' | sort -u | head -n 1)
+          echo "CI Check Result: '$CI_CONCLUSION'"
+          if [ "$CI_CONCLUSION" == "failure" ] || [ "$CI_CONCLUSION" == "cancelled" ]; then
+            echo "❌ ABORT DEPLOYMENT: CI check failed for this spec on commit ${{ github.sha }}!"
+            exit 1
+          fi
+          echo "✅ CI Status Gate Passed. Proceeding to APIM Prod deployment..."
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
