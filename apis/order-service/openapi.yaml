@@ -69,6 +69,7 @@ paths:
           description: Order not found
     delete:
       summary: Delete an order by ID
+      operationId: deleteOrderById
       tags:
         - Orders
       parameters:
