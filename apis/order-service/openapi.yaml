@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Order Service API
-  description: API for managing customer orders and status updates
-  version: 1.0.0
+  description: API for managing customer orders, cancellations, and status updates
+  version: 1.1.0
 paths:
   /orders:
     get:
