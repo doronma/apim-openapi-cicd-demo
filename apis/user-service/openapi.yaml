@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: User Service API
   description: API for managing user profiles, authentication metadata, and user preferences
-  version: 1.0.0
+  version: 1.1.0
 paths:
   /users:
     get:
@@ -49,6 +49,51 @@ paths:
                 $ref: '#/components/schemas/UserProfile'
         '404':
           description: User profile not found
+  /users/{userId}/preferences:
+    get:
+      summary: Get user preferences by user ID
+      operationId: getUserPreferences
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User preference settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+    put:
+      summary: Update user preferences by user ID
+      operationId: updateUserPreferences
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Unique ID of the user
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferences'
+      responses:
+        '200':
+          description: User preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
 components:
   schemas:
     UserProfile:
@@ -68,3 +113,16 @@ components:
         name:
           type: string
           example: Jane Doe
+    UserPreferences:
+      type: object
+      required:
+        - theme
+        - notifications
+      properties:
+        theme:
+          type: string
+          enum: [LIGHT, DARK, SYSTEM]
+          example: DARK
+        notifications:
+          type: boolean
+          example: true
