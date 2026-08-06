@@ -18,6 +18,12 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: status
+          in: query
+          description: Filter orders by status
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: A list of orders
