@@ -128,8 +128,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Push Immutable Audit Tag
-          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to dev at commit ${SHORT_SHA}"
-          git push origin "$AUDIT_TAG"
+          git tag -f -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to dev at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG" --force
 
           # Push/Update Moving Pointer Tag
           git tag -f "$MOVING_TAG" ${{ github.sha }}
@@ -235,8 +235,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Push Immutable Audit Tag
-          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to staging at commit ${SHORT_SHA}"
-          git push origin "$AUDIT_TAG"
+          git tag -f -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to staging at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG" --force
 
           # Push/Update Moving Pointer Tag
           git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
@@ -341,8 +341,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Push Immutable Audit Tag
-          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to prod at commit ${SHORT_SHA}"
-          git push origin "$AUDIT_TAG"
+          git tag -f -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to prod at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG" --force
 
           # Push/Update Moving Pointer Tag
           git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
