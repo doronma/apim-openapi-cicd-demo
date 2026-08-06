@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Order Service API
-  description: API for managing customer orders, cancellations, and status updates
+  description: API for managing customer orders, cancellations, refunds, and status updates
   version: 1.2.0
 paths:
   /orders:
@@ -129,6 +129,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+  /orders/{orderId}/refund:
+    post:
+      summary: Request a refund for an order
+      operationId: refundOrder
+      tags:
+        - Orders
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Unique identifier of the order to refund
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: Item arrived damaged
+      responses:
+        '200':
+          description: Refund request processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refundId:
+                    type: string
+                    example: ref_98765
+                  status:
+                    type: string
+                    example: REFUNDED
 components:
   schemas:
     Order:
@@ -143,7 +182,7 @@ components:
           example: ord_12345
         status:
           type: string
-          enum: [PENDING, PROCESSING, COMPLETED, CANCELLED]
+          enum: [PENDING, PROCESSING, COMPLETED, CANCELLED, REFUNDED]
           example: PENDING
         amount:
           type: number
