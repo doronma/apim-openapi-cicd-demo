@@ -83,10 +83,9 @@ jobs:
 
       - name: Install oasdiff CLI
         run: |
-          echo "📥 Installing oasdiff for breaking change detection..."
-          mkdir -p $HOME/.local/bin
-          curl -fsSL https://raw.githubusercontent.com/tufin/oasdiff/main/install.sh | INSTALL_DIR=$HOME/.local/bin sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "📥 Installing oasdiff CLI..."
+          curl -fsSL https://github.com/oasdiff/oasdiff/releases/download/v1.28.0/oasdiff_1.28.0_linux_amd64.tar.gz | sudo tar -xz -C /usr/local/bin oasdiff
+          oasdiff --version
 
       - name: Detect Breaking Changes (oasdiff)
         run: |
@@ -96,11 +95,11 @@ jobs:
           echo "🔍 Checking for breaking API changes against Production baseline..."
           if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
             echo "📌 Production baseline tag '$PROD_TAG' found."
-            $HOME/.local/bin/oasdiff breaking "$PROD_TAG:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR
+            oasdiff breaking "$PROD_TAG:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR
             echo "✅ No ERR-level breaking changes detected against Production!"
           elif git rev-parse origin/main >/dev/null 2>&1 && [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "⚠️ Production baseline tag '$PROD_TAG' not found. Comparing against 'origin/main'..."
-            $HOME/.local/bin/oasdiff breaking "origin/main:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR || true
+            oasdiff breaking "origin/main:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR || true
             echo "✅ Baseline comparison completed."
           else
             echo "ℹ️ No Production baseline tag ($PROD_TAG) found yet. Skipping breaking change comparison."
