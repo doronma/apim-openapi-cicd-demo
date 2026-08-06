@@ -204,6 +204,28 @@ paths:
             text/csv:
               schema:
                 type: string
+  /orders/search:
+    get:
+      summary: Search orders by advanced query criteria
+      operationId: searchOrders
+      tags:
+        - Orders
+      parameters:
+        - name: query
+          in: query
+          description: Search term or keyword
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching orders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
 components:
   schemas:
     Order:
