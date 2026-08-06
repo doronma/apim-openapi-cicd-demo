@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Order Service API
   description: API for managing customer orders, cancellations, refunds, bulk orders, and status updates
-  version: 1.2.0
+  version: 1.3.0
 paths:
   /orders:
     get:
@@ -246,6 +246,26 @@ paths:
                   totalRevenue:
                     type: number
                     example: 45890.50
+  /orders/reports:
+    get:
+      summary: Generate executive sales report
+      operationId: getOrderReports
+      tags:
+        - Orders
+      responses:
+        '200':
+          description: Executive report object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reportId:
+                    type: string
+                    example: rep_2026_Q3
+                  status:
+                    type: string
+                    example: GENERATED
 components:
   schemas:
     Order:
