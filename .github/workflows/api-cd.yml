@@ -22,6 +22,9 @@ on:
           - prod
         default: 'dev'
 
+permissions:
+  contents: write
+
 jobs:
   detect-services:
     name: Determine Target Service
@@ -53,6 +56,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify CI Status Gate
         run: |
@@ -83,6 +88,28 @@ jobs:
           echo "🧪 Running automated integration tests against Dev APIM for ${{ matrix.service }}..."
           echo "✅ All Dev tests passed!"
 
+      - name: Create & Push Deployment Git Tags
+        run: |
+          SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          AUDIT_TAG="${{ matrix.service }}/dev/v${SPEC_VERSION}-g${SHORT_SHA}"
+          MOVING_TAG="env/dev/${{ matrix.service }}"
+
+          echo "🏷️ Creating Git Tags for ${{ matrix.service }} (Dev):"
+          echo "   📌 Immutable Audit Tag:  $AUDIT_TAG"
+          echo "   📍 Moving Environment Pointer: $MOVING_TAG"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Push Immutable Audit Tag
+          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to dev at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG"
+
+          # Push/Update Moving Pointer Tag
+          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git push origin "$MOVING_TAG" --force
+
   deploy-staging:
     name: Deploy to Staging
     needs: detect-services
@@ -95,6 +122,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify CI Status Gate
         run: |
@@ -125,6 +154,28 @@ jobs:
           echo "🧪 Running security & performance tests against Staging APIM for ${{ matrix.service }}..."
           echo "✅ All Staging tests passed!"
 
+      - name: Create & Push Deployment Git Tags
+        run: |
+          SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          AUDIT_TAG="${{ matrix.service }}/staging/v${SPEC_VERSION}-g${SHORT_SHA}"
+          MOVING_TAG="env/staging/${{ matrix.service }}"
+
+          echo "🏷️ Creating Git Tags for ${{ matrix.service }} (Staging):"
+          echo "   📌 Immutable Audit Tag:  $AUDIT_TAG"
+          echo "   📍 Moving Environment Pointer: $MOVING_TAG"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Push Immutable Audit Tag
+          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to staging at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG"
+
+          # Push/Update Moving Pointer Tag
+          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git push origin "$MOVING_TAG" --force
+
   deploy-prod:
     name: Deploy to Production
     needs: detect-services
@@ -137,6 +188,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify CI Status Gate
         run: |
@@ -165,3 +218,25 @@ jobs:
       - name: Post-Deployment Verification
         run: |
           echo "🎉 Production deployment verified for ${{ matrix.service }}!"
+
+      - name: Create & Push Deployment Git Tags
+        run: |
+          SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          AUDIT_TAG="${{ matrix.service }}/prod/v${SPEC_VERSION}-g${SHORT_SHA}"
+          MOVING_TAG="env/prod/${{ matrix.service }}"
+
+          echo "🏷️ Creating Git Tags for ${{ matrix.service }} (Prod):"
+          echo "   📌 Immutable Audit Tag:  $AUDIT_TAG"
+          echo "   📍 Moving Environment Pointer: $MOVING_TAG"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Push Immutable Audit Tag
+          git tag -a "$AUDIT_TAG" -m "Automated deployment of ${{ matrix.service }} v${SPEC_VERSION} to prod at commit ${SHORT_SHA}"
+          git push origin "$AUDIT_TAG"
+
+          # Push/Update Moving Pointer Tag
+          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git push origin "$MOVING_TAG" --force
