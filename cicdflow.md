@@ -60,7 +60,6 @@ This document outlines the recommended GitOps strategy for managing Open API (Sw
 * **Automated CI Checks**:
   * **OpenAPI Linting**: Validates syntax and style rules using Spectral (`.spectral.yaml`).
   * **Schema Verification**: Ensures valid OpenAPI 3.0 / Swagger schema.
-  * **Breaking Change Detection**: Uses `oasdiff` to compare the PR spec against the active Production baseline tag (`env/prod/<service>`). If any `ERR`-level breaking change is detected (e.g. deleted required fields, type changes, removed endpoints), CI fails automatically.
 
 ### 2. Merge & Dev Deployment (CD)
 * Once PR is approved by `CODEOWNERS` and CI passes, it is merged into `main`.
