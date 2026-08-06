@@ -7,12 +7,14 @@ on:
     paths:
       - 'apis/**'
       - '.spectral.yaml'
+      - '.github/workflows/api-ci.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'apis/**'
       - '.spectral.yaml'
+      - '.github/workflows/api-ci.yml'
 
 jobs:
   detect-changes:
