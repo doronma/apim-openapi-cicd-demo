@@ -8,13 +8,6 @@ on:
       - 'apis/**'
       - '.spectral.yaml'
       - '.github/workflows/api-ci.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'apis/**'
-      - '.spectral.yaml'
-      - '.github/workflows/api-ci.yml'
 
 jobs:
   detect-changes:
@@ -32,11 +25,7 @@ jobs:
       - name: Find Changed Services
         id: set-matrix
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-          else
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "apis/order-service/openapi.yaml apis/user-service/openapi.yaml")
-          fi
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "apis/order-service/openapi.yaml apis/user-service/openapi.yaml")
           SERVICES=$(echo "$CHANGED_FILES" | grep '^apis/' | cut -d'/' -f2 | sort -u | jq -R . | jq -s -c .)
           echo "Detected changed API services: $SERVICES"
           if [ "$SERVICES" == "[]" ] || [ "$SERVICES" == "" ]; then

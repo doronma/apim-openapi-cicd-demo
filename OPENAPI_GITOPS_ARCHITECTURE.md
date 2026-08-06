@@ -14,7 +14,7 @@ Managing API specifications at scale presents severe challenges for engineering 
 ### Core Principles of This Solution
 
 1. **Single Source of Truth**: Each API service maintains exactly **one canonical OpenAPI file** (`openapi.yaml`). Environment-specific settings (backend target URLs, rate limits, CORS/JWT policies) are decoupled into overlay files (`config/dev.json`, `config/staging.json`, `config/prod.json`).
-2. **Automated Quality & Linting Gates (CI)**: Every Pull Request triggers automated linting (Spectral) and schema validation across altered services before merge.
+2. **Automated Quality & Linting Gates (CI)**: Every commit pushed to `main` triggers automated linting (Spectral) and schema validation across altered services.
 3. **Sequential Commit Promotion (CD)**: Staging and Production always deploy the **exact commit SHA** verified in lower environments, eliminating "works in Dev, breaks in Prod" drift.
 4. **Version Immutability**: Once an OpenAPI spec version (e.g. `1.3.0`) is published to Production, it becomes immutable. Modifying the spec requires bumping `info.version` (SemVer).
 5. **Dual Tagging Strategy**: Integrates **moving environment pointers** (`env/dev/order-service`) for pipeline targeting alongside **immutable audit tags** (`order-service/prod/v1.3.0-g<sha>`) for auditing and rollbacks.
@@ -28,9 +28,9 @@ A monorepo structure allows central API governance while giving individual servi
 ```text
 .
 ├── .github/
-│   ├── CODEOWNERS                      # Restricts approvals per API folder
+│   ├── CODEOWNERS                      # Restricts ownership per API folder
 │   └── workflows/
-│       ├── api-ci.yml                  # PR validation (Spectral linting & schema check)
+│       ├── api-ci.yml                  # Commit validation (Spectral linting & schema check)
 │       └── api-cd.yml                  # Script & event-driven multi-environment deployment
 ├── apis/
 │   ├── order-service/                  # Dedicated API service directory
@@ -148,14 +148,14 @@ Using GitHub `CODEOWNERS`, the APIM team maintains root workflow governance whil
 ```
 
 #### Why We Use This:
-- Ensures PRs altering `/apis/order-service/` require explicit sign-off from `@company/order-team-leads`.
+- Enforces ownership and access boundaries over `/apis/order-service/`.
 - Prevents unauthorized edits to platform workflow configurations.
 
 ---
 
 ## 5. Continuous Integration (CI) Pipeline (`api-ci.yml`)
 
-The CI pipeline runs automatically on Pull Requests and pushes to `main`. It validates OpenAPI specifications using Spectral to catch syntax and linting errors before code can be merged.
+The CI pipeline runs automatically on every commit pushed to `main`. It validates OpenAPI specifications using Spectral to catch syntax and linting errors immediately upon commit.
 
 ### 5.1 Matrix Strategy & Path Filtering
 To scale across dozens of API services without causing slow pipeline runs, CI dynamically detects which service folders changed and runs linting jobs in parallel.
@@ -167,13 +167,6 @@ name: API CI - Lint & Validate
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'apis/**'
-      - '.spectral.yaml'
-      - '.github/workflows/api-ci.yml'
-  pull_request:
     branches:
       - main
     paths:
@@ -197,11 +190,7 @@ jobs:
       - name: Find Changed Services
         id: set-matrix
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
-          else
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "apis/order-service/openapi.yaml apis/user-service/openapi.yaml")
-          fi
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "apis/order-service/openapi.yaml apis/user-service/openapi.yaml")
           SERVICES=$(echo "$CHANGED_FILES" | grep '^apis/' | cut -d'/' -f2 | sort -u | jq -R . | jq -s -c .)
           echo "Detected changed API services: $SERVICES"
           echo "has_changes=true" >> $GITHUB_OUTPUT
@@ -238,7 +227,7 @@ The CD pipeline handles promotion across **Dev**, **Staging**, and **Production*
 
 ```mermaid
 graph TD
-    A[PR Merged to main] --> B[Dev Deployment]
+    A[Commit Pushed to main] --> B[Dev Deployment]
     B --> C[CI Status Gate]
     C --> D[Version Immutability Gate]
     D --> E[Deploy to Dev APIM]
