@@ -266,6 +266,28 @@ paths:
                   status:
                     type: string
                     example: GENERATED
+  /orders/notifications:
+    get:
+      summary: List order status change notifications
+      operationId: getOrderNotifications
+      tags:
+        - Orders
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    notificationId:
+                      type: string
+                      example: notif_001
+                    message:
+                      type: string
+                      example: Order shipped successfully
 components:
   schemas:
     Order:
