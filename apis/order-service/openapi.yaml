@@ -191,6 +191,19 @@ paths:
                   status:
                     type: string
                     example: REFUNDED
+  /orders/export:
+    get:
+      summary: Export order history as CSV
+      operationId: exportOrders
+      tags:
+        - Orders
+      responses:
+        '200':
+          description: Exported order data file
+          content:
+            text/csv:
+              schema:
+                type: string
 components:
   schemas:
     Order:
