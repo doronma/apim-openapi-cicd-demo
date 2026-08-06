@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Order Service API
-  description: API for managing customer orders, cancellations, refunds, and status updates
+  description: API for managing customer orders, cancellations, refunds, bulk orders, and status updates
   version: 1.2.0
 paths:
   /orders:
@@ -45,6 +45,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+  /orders/bulk:
+    post:
+      summary: Create multiple orders in bulk
+      operationId: createBulkOrders
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/NewOrder'
+      responses:
+        '201':
+          description: Bulk orders created successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
   /orders/{orderId}:
     get:
       summary: Get order details by ID
