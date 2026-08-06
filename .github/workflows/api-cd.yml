@@ -74,6 +74,31 @@ jobs:
           fi
           echo "✅ CI Status Gate Passed. Proceeding to APIM Dev deployment..."
 
+      - name: Verify Version Immutability Gate
+        run: |
+          echo "🔍 Checking Post-Production Version Immutability..."
+          PROD_TAG="env/prod/${{ matrix.service }}"
+          if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
+            PROD_SHA=$(git rev-parse "$PROD_TAG")
+            NEW_SHA="${{ github.sha }}"
+
+            if [ "$PROD_SHA" != "$NEW_SHA" ]; then
+              PROD_VERSION=$(git show "$PROD_TAG:apis/${{ matrix.service }}/openapi.yaml" | node -e "const fs=require('fs'); const c=fs.readFileSync(0,'utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+              NEW_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+
+              echo "   Production Version: '$PROD_VERSION' (Commit: ${PROD_SHA:0:7})"
+              echo "   New Spec Version:   '$NEW_VERSION' (Commit: ${NEW_SHA:0:7})"
+
+              if [ "$NEW_VERSION" == "$PROD_VERSION" ]; then
+                echo "❌ ABORT DEPLOYMENT: Version '$PROD_VERSION' has already been published to Production!"
+                echo "   You cannot deploy new spec modifications without bumping 'info.version' in openapi.yaml."
+                echo "   Please bump 'info.version' (e.g. to next version) before deploying."
+                exit 1
+              fi
+            fi
+          fi
+          echo "✅ Version Immutability Gate Passed."
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -125,20 +150,61 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve Target Commit from Dev (Sequential Promotion)
+        id: resolve-commit
+        run: |
+          DEV_TAG="env/dev/${{ matrix.service }}"
+          if git rev-parse "$DEV_TAG" >/dev/null 2>&1; then
+            TARGET_SHA=$(git rev-parse "$DEV_TAG")
+            echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Dev)"
+            git checkout "$TARGET_SHA"
+            echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+            echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
+          else
+            echo "⚠️ No Dev deployment tag found ($DEV_TAG). Deploying current commit."
+            echo "target_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "TARGET_SHA=${{ github.sha }}" >> $GITHUB_ENV
+          fi
+
       - name: Verify CI Status Gate
         run: |
-          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          echo "🔍 Checking CI validation status for commit ${{ env.TARGET_SHA }}..."
           CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ env.TARGET_SHA }}/check-runs)
 
           CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("Lint")) | .conclusion' | sort -u | head -n 1)
           echo "CI Check Result for '${{ matrix.service }}': '$CI_CONCLUSION'"
           if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ github.sha }}!"
+            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ env.TARGET_SHA }}!"
             exit 1
           fi
           echo "✅ CI Status Gate Passed. Proceeding to APIM Staging deployment..."
+
+      - name: Verify Version Immutability Gate
+        run: |
+          echo "🔍 Checking Post-Production Version Immutability..."
+          PROD_TAG="env/prod/${{ matrix.service }}"
+          if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
+            PROD_SHA=$(git rev-parse "$PROD_TAG")
+            NEW_SHA="${{ env.TARGET_SHA }}"
+
+            if [ "$PROD_SHA" != "$NEW_SHA" ]; then
+              PROD_VERSION=$(git show "$PROD_TAG:apis/${{ matrix.service }}/openapi.yaml" | node -e "const fs=require('fs'); const c=fs.readFileSync(0,'utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+              NEW_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+
+              echo "   Production Version: '$PROD_VERSION' (Commit: ${PROD_SHA:0:7})"
+              echo "   New Spec Version:   '$NEW_VERSION' (Commit: ${NEW_SHA:0:7})"
+
+              if [ "$NEW_VERSION" == "$PROD_VERSION" ]; then
+                echo "❌ ABORT DEPLOYMENT: Version '$PROD_VERSION' has already been published to Production!"
+                echo "   You cannot deploy spec modifications without bumping 'info.version' in openapi.yaml."
+                echo "   Please bump 'info.version' (e.g. to next version) before deploying."
+                exit 1
+              fi
+            fi
+          fi
+          echo "✅ Version Immutability Gate Passed."
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -157,7 +223,7 @@ jobs:
       - name: Create & Push Deployment Git Tags
         run: |
           SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHORT_SHA=$(echo "${{ env.TARGET_SHA }}" | cut -c1-7)
           AUDIT_TAG="${{ matrix.service }}/staging/v${SPEC_VERSION}-g${SHORT_SHA}"
           MOVING_TAG="env/staging/${{ matrix.service }}"
 
@@ -173,7 +239,7 @@ jobs:
           git push origin "$AUDIT_TAG"
 
           # Push/Update Moving Pointer Tag
-          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
           git push origin "$MOVING_TAG" --force
 
   deploy-prod:
@@ -191,20 +257,61 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve Target Commit from Staging (Sequential Promotion)
+        id: resolve-commit
+        run: |
+          STAGING_TAG="env/staging/${{ matrix.service }}"
+          if git rev-parse "$STAGING_TAG" >/dev/null 2>&1; then
+            TARGET_SHA=$(git rev-parse "$STAGING_TAG")
+            echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Staging)"
+            git checkout "$TARGET_SHA"
+            echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+            echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
+          else
+            echo "⚠️ No Staging deployment tag found ($STAGING_TAG). Deploying current commit."
+            echo "target_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "TARGET_SHA=${{ github.sha }}" >> $GITHUB_ENV
+          fi
+
       - name: Verify CI Status Gate
         run: |
-          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          echo "🔍 Checking CI validation status for commit ${{ env.TARGET_SHA }}..."
           CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ env.TARGET_SHA }}/check-runs)
 
           CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("Lint")) | .conclusion' | sort -u | head -n 1)
           echo "CI Check Result for '${{ matrix.service }}': '$CI_CONCLUSION'"
           if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ github.sha }}!"
+            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ env.TARGET_SHA }}!"
             exit 1
           fi
           echo "✅ CI Status Gate Passed. Proceeding to APIM Prod deployment..."
+
+      - name: Verify Version Immutability Gate
+        run: |
+          echo "🔍 Checking Post-Production Version Immutability..."
+          PROD_TAG="env/prod/${{ matrix.service }}"
+          if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
+            PROD_SHA=$(git rev-parse "$PROD_TAG")
+            NEW_SHA="${{ env.TARGET_SHA }}"
+
+            if [ "$PROD_SHA" != "$NEW_SHA" ]; then
+              PROD_VERSION=$(git show "$PROD_TAG:apis/${{ matrix.service }}/openapi.yaml" | node -e "const fs=require('fs'); const c=fs.readFileSync(0,'utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+              NEW_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
+
+              echo "   Production Version: '$PROD_VERSION' (Commit: ${PROD_SHA:0:7})"
+              echo "   New Spec Version:   '$NEW_VERSION' (Commit: ${NEW_SHA:0:7})"
+
+              if [ "$NEW_VERSION" == "$PROD_VERSION" ]; then
+                echo "❌ ABORT DEPLOYMENT: Version '$PROD_VERSION' has already been published to Production!"
+                echo "   You cannot deploy spec modifications without bumping 'info.version' in openapi.yaml."
+                echo "   Please bump 'info.version' (e.g. to next version) before deploying."
+                exit 1
+              fi
+            fi
+          fi
+          echo "✅ Version Immutability Gate Passed."
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -222,7 +329,7 @@ jobs:
       - name: Create & Push Deployment Git Tags
         run: |
           SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHORT_SHA=$(echo "${{ env.TARGET_SHA }}" | cut -c1-7)
           AUDIT_TAG="${{ matrix.service }}/prod/v${SPEC_VERSION}-g${SHORT_SHA}"
           MOVING_TAG="env/prod/${{ matrix.service }}"
 
@@ -238,5 +345,5 @@ jobs:
           git push origin "$AUDIT_TAG"
 
           # Push/Update Moving Pointer Tag
-          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
           git push origin "$MOVING_TAG" --force
