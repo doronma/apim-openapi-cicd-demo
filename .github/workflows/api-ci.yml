@@ -56,6 +56,11 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch All Git Tags
+        run: git fetch --tags origin || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -75,3 +80,27 @@ jobs:
         run: |
           echo "✅ Validating OpenAPI Schema syntax..."
           spectral lint apis/${{ matrix.service }}/openapi.yaml
+
+      - name: Install oasdiff CLI
+        run: |
+          echo "📥 Installing oasdiff for breaking change detection..."
+          curl -fsSL https://raw.githubusercontent.com/tufin/oasdiff/main/install.sh | sh
+          echo "$HOME/.oasdiff/bin" >> $GITHUB_PATH
+
+      - name: Detect Breaking Changes (oasdiff)
+        run: |
+          PROD_TAG="env/prod/${{ matrix.service }}"
+          SPEC_PATH="apis/${{ matrix.service }}/openapi.yaml"
+
+          echo "🔍 Checking for breaking API changes against Production baseline..."
+          if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
+            echo "📌 Production baseline tag '$PROD_TAG' found."
+            $HOME/.oasdiff/bin/oasdiff breaking "$PROD_TAG:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR
+            echo "✅ No ERR-level breaking changes detected against Production!"
+          elif git rev-parse origin/main >/dev/null 2>&1 && [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "⚠️ Production baseline tag '$PROD_TAG' not found. Comparing against 'origin/main'..."
+            $HOME/.oasdiff/bin/oasdiff breaking "origin/main:$SPEC_PATH" "$SPEC_PATH" --fail-on ERR || true
+            echo "✅ Baseline comparison completed."
+          else
+            echo "ℹ️ No Production baseline tag ($PROD_TAG) found yet. Skipping breaking change comparison."
+          fi

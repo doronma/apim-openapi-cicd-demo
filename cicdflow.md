@@ -58,9 +58,9 @@ This document outlines the recommended GitOps strategy for managing Open API (Sw
 * Developer adds or updates `apis/<project-name>/openapi.yaml` or environment configuration files in a feature branch.
 * Opens a Pull Request targeting `main`.
 * **Automated CI Checks**:
-  * **OpenAPI Linting**: Validates syntax and style rules (e.g., using Spectral).
-  * **Schema Verification**: Ensures valid OpenAPI 3.0 / Swagger 2.0 schema.
-  * **Breaking Change Analysis**: Compares changes against the published production spec to detect incompatible changes (e.g., using `oasdiff`).
+  * **OpenAPI Linting**: Validates syntax and style rules using Spectral (`.spectral.yaml`).
+  * **Schema Verification**: Ensures valid OpenAPI 3.0 / Swagger schema.
+  * **Breaking Change Detection**: Uses `oasdiff` to compare the PR spec against the active Production baseline tag (`env/prod/<service>`). If any `ERR`-level breaking change is detected (e.g. deleted required fields, type changes, removed endpoints), CI fails automatically.
 
 ### 2. Merge & Dev Deployment (CD)
 * Once PR is approved by `CODEOWNERS` and CI passes, it is merged into `main`.
