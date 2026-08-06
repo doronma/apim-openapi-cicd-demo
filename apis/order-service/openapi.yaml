@@ -226,6 +226,26 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Order'
+  /orders/analytics:
+    get:
+      summary: Get order sales analytics summary
+      operationId: getOrderAnalytics
+      tags:
+        - Orders
+      responses:
+        '200':
+          description: Analytics summary object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalOrders:
+                    type: integer
+                    example: 1250
+                  totalRevenue:
+                    type: number
+                    example: 45890.50
 components:
   schemas:
     Order:
