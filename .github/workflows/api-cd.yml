@@ -21,6 +21,11 @@ on:
           - staging
           - prod
         default: 'dev'
+      target_sha:
+        description: 'Target Commit SHA (Optional; defaults to latest for Dev, or active previous env SHA for Staging/Prod)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -59,17 +64,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve Target Commit for Dev
+        id: resolve-commit
+        run: |
+          INPUT_SHA="${{ github.event.inputs.target_sha }}"
+          if [ -n "$INPUT_SHA" ]; then
+            if ! TARGET_SHA=$(git rev-parse --verify "${INPUT_SHA}^{commit}" 2>/dev/null); then
+              echo "❌ ABORT: Target commit SHA '$INPUT_SHA' does not exist in repository!"
+              exit 1
+            fi
+            echo "🎯 Explicit Target Commit Selected: '$TARGET_SHA'"
+          else
+            TARGET_SHA="${{ github.sha }}"
+            echo "📍 Default Dev Commit Selected: '$TARGET_SHA'"
+          fi
+          git checkout "$TARGET_SHA"
+          echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
+
       - name: Verify CI Status Gate
         run: |
-          echo "🔍 Checking CI validation status for commit ${{ github.sha }}..."
+          echo "🔍 Checking CI validation status for commit ${{ env.TARGET_SHA }}..."
           CHECKS_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs)
+            https://api.github.com/repos/${{ github.repository }}/commits/${{ env.TARGET_SHA }}/check-runs)
 
           CI_CONCLUSION=$(echo "$CHECKS_JSON" | jq -r '.check_runs[] | select(.name | contains("Lint")) | .conclusion' | sort -u | head -n 1)
           echo "CI Check Result for '${{ matrix.service }}': '$CI_CONCLUSION'"
           if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ github.sha }}!"
+            echo "❌ ABORT DEPLOYMENT: CI check is '$CI_CONCLUSION' (must be 'success') for commit ${{ env.TARGET_SHA }}!"
             exit 1
           fi
           echo "✅ CI Status Gate Passed. Proceeding to APIM Dev deployment..."
@@ -80,7 +103,7 @@ jobs:
           PROD_TAG="env/prod/${{ matrix.service }}"
           if git rev-parse "$PROD_TAG" >/dev/null 2>&1; then
             PROD_SHA=$(git rev-parse "$PROD_TAG")
-            NEW_SHA="${{ github.sha }}"
+            NEW_SHA="${{ env.TARGET_SHA }}"
 
             if [ "$PROD_SHA" != "$NEW_SHA" ]; then
               PROD_VERSION=$(git show "$PROD_TAG:apis/${{ matrix.service }}/openapi.yaml" | node -e "const fs=require('fs'); const c=fs.readFileSync(0,'utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
@@ -116,7 +139,7 @@ jobs:
       - name: Create & Push Deployment Git Tags
         run: |
           SPEC_VERSION=$(node -e "const fs=require('fs'); const c=fs.readFileSync('apis/${{ matrix.service }}/openapi.yaml','utf8'); const m=c.match(/version:\s*['\"]?([^'\"\s]+)['\"]?/); console.log(m ? m[1] : '1.0.0');")
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHORT_SHA=$(echo "${{ env.TARGET_SHA }}" | cut -c1-7)
           AUDIT_TAG="${{ matrix.service }}/dev/v${SPEC_VERSION}-g${SHORT_SHA}"
           MOVING_TAG="env/dev/${{ matrix.service }}"
 
@@ -132,7 +155,7 @@ jobs:
           git push origin "$AUDIT_TAG" --force
 
           # Push/Update Moving Pointer Tag
-          git tag -f "$MOVING_TAG" ${{ github.sha }}
+          git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
           git push origin "$MOVING_TAG" --force
 
   deploy-staging:
@@ -150,21 +173,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve Target Commit from Dev (Sequential Promotion)
+      - name: Resolve Target Commit from Dev (Sequential Promotion & Ancestry Gate)
         id: resolve-commit
         run: |
+          INPUT_SHA="${{ github.event.inputs.target_sha }}"
           DEV_TAG="env/dev/${{ matrix.service }}"
-          if git rev-parse "$DEV_TAG" >/dev/null 2>&1; then
-            TARGET_SHA=$(git rev-parse "$DEV_TAG")
-            echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Dev)"
-            git checkout "$TARGET_SHA"
-            echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
-            echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
+
+          if [ -n "$INPUT_SHA" ]; then
+            if ! TARGET_SHA=$(git rev-parse --verify "${INPUT_SHA}^{commit}" 2>/dev/null); then
+              echo "❌ ABORT: Target commit SHA '$INPUT_SHA' does not exist in repository!"
+              exit 1
+            fi
+            echo "🎯 Explicit Target SHA requested: '$TARGET_SHA'"
+
+            if git rev-parse "$DEV_TAG" >/dev/null 2>&1; then
+              DEV_SHA=$(git rev-parse "$DEV_TAG")
+              if ! git merge-base --is-ancestor "$TARGET_SHA" "$DEV_SHA"; then
+                echo "❌ ABORT DEPLOYMENT: Target commit '$TARGET_SHA' has NOT been deployed to Dev!"
+                echo "   Active commit in Dev tag '$DEV_TAG' is '$DEV_SHA'."
+                echo "   You cannot deploy a commit to Staging that is not present in Dev's history."
+                exit 1
+              fi
+              echo "✅ Ancestry Gate Passed: Commit '$TARGET_SHA' exists in Dev deployment history."
+            else
+              echo "❌ ABORT DEPLOYMENT: No active Dev deployment tag ($DEV_TAG) found. Deploy to Dev first!"
+              exit 1
+            fi
           else
-            echo "⚠️ No Dev deployment tag found ($DEV_TAG). Deploying current commit."
-            echo "target_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "TARGET_SHA=${{ github.sha }}" >> $GITHUB_ENV
+            if git rev-parse "$DEV_TAG" >/dev/null 2>&1; then
+              TARGET_SHA=$(git rev-parse "$DEV_TAG")
+              echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Dev)"
+            else
+              echo "⚠️ No Dev deployment tag found ($DEV_TAG). Deploying current commit."
+              TARGET_SHA="${{ github.sha }}"
+            fi
           fi
+
+          git checkout "$TARGET_SHA"
+          echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
 
       - name: Verify CI Status Gate
         run: |
@@ -257,21 +304,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve Target Commit from Staging (Sequential Promotion)
+      - name: Resolve Target Commit from Staging (Sequential Promotion & Ancestry Gate)
         id: resolve-commit
         run: |
+          INPUT_SHA="${{ github.event.inputs.target_sha }}"
           STAGING_TAG="env/staging/${{ matrix.service }}"
-          if git rev-parse "$STAGING_TAG" >/dev/null 2>&1; then
-            TARGET_SHA=$(git rev-parse "$STAGING_TAG")
-            echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Staging)"
-            git checkout "$TARGET_SHA"
-            echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
-            echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
+
+          if [ -n "$INPUT_SHA" ]; then
+            if ! TARGET_SHA=$(git rev-parse --verify "${INPUT_SHA}^{commit}" 2>/dev/null); then
+              echo "❌ ABORT: Target commit SHA '$INPUT_SHA' does not exist in repository!"
+              exit 1
+            fi
+            echo "🎯 Explicit Target SHA requested: '$TARGET_SHA'"
+
+            if git rev-parse "$STAGING_TAG" >/dev/null 2>&1; then
+              STAGING_SHA=$(git rev-parse "$STAGING_TAG")
+              if ! git merge-base --is-ancestor "$TARGET_SHA" "$STAGING_SHA"; then
+                echo "❌ ABORT DEPLOYMENT: Target commit '$TARGET_SHA' has NOT been deployed to Staging!"
+                echo "   Active commit in Staging tag '$STAGING_TAG' is '$STAGING_SHA'."
+                echo "   You cannot deploy a commit to Production that is not present in Staging's history."
+                exit 1
+              fi
+              echo "✅ Ancestry Gate Passed: Commit '$TARGET_SHA' exists in Staging deployment history."
+            else
+              echo "❌ ABORT DEPLOYMENT: No active Staging deployment tag ($STAGING_TAG) found. Deploy to Staging first!"
+              exit 1
+            fi
           else
-            echo "⚠️ No Staging deployment tag found ($STAGING_TAG). Deploying current commit."
-            echo "target_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
-            echo "TARGET_SHA=${{ github.sha }}" >> $GITHUB_ENV
+            if git rev-parse "$STAGING_TAG" >/dev/null 2>&1; then
+              TARGET_SHA=$(git rev-parse "$STAGING_TAG")
+              echo "📍 Sequential Promotion: Checkout commit '$TARGET_SHA' (currently active in Staging)"
+            else
+              echo "⚠️ No Staging deployment tag found ($STAGING_TAG). Deploying current commit."
+              TARGET_SHA="${{ github.sha }}"
+            fi
           fi
+
+          git checkout "$TARGET_SHA"
+          echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_ENV
 
       - name: Verify CI Status Gate
         run: |
@@ -347,3 +418,4 @@ jobs:
           # Push/Update Moving Pointer Tag
           git tag -f "$MOVING_TAG" ${{ env.TARGET_SHA }}
           git push origin "$MOVING_TAG" --force
+

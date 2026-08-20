@@ -19,10 +19,13 @@ This document outlines the recommended GitOps strategy for managing Open API (Sw
    - Every Pull Request (PR) triggers automated linting, schema validation, and breaking change detection before code can be merged to `main`.
 
 4. **Tag & Environment-Based CD Promotion**:
-   - Deployments are triggered via automated CI/CD pipelines (e.g., GitHub Actions), promoting the validated commit SHA or Release Tag across environments.
-   - **Dev**: Deployed automatically upon merge to `main`.
-   - **Staging**: Deployed automatically after Dev deployment succeeds (or via workflow trigger).
-   - **Prod**: Requires explicit human approval via GitHub Environment Protection Rules before deployment.
+   - Deployments are triggered via automated CI/CD pipelines (e.g., GitHub Actions), promoting the validated commit SHA across environments.
+   - **Target Commit Selection (`target_sha`)**: Users can optionally specify a target commit SHA/tag to deploy a specific version. By default, it promotes the latest commit active in the preceding environment.
+   - **CI Status Gate**: Every deployment verifies that the target commit SHA has passed CI linting and schema validation before deploying.
+   - **Previous-Environment Ancestry Gate**: Promoted commits must already exist in the previous environment's deployment history (`dev` -> `staging` -> `prod`). Attempting to deploy an unverified commit directly to Staging or Prod will abort the pipeline.
+   - **Dev**: Deployed automatically upon merge to `main` (or via workflow trigger).
+   - **Staging**: Promotes the active Dev deployment commit (or an explicit prior Dev commit).
+   - **Prod**: Requires explicit human approval via GitHub Environment Protection Rules before promoting the active Staging commit.
 
 ---
 
